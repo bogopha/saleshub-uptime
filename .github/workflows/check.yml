@@ -1,0 +1,30 @@
+# SalesHub 바깥 감시 — 5분마다 로그인 화면이 열리는지 본다. 안 열리면 이 실행이 실패하고,
+# GitHub 가 cron 줄을 마지막으로 고친 계정(bogopha)에게 실패 메일을 보낸다. 코드·비밀값은 없다.
+name: saleshub-up
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+    inputs:
+      test_fail:
+        description: '실패 메일 시험(true 면 일부러 실패)'
+        required: false
+        default: 'false'
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: 로그인 화면 응답 확인(3번까지 다시 시도)
+        run: |
+          if [ "${{ github.event.inputs.test_fail }}" = "true" ]; then echo "시험용 실패"; exit 1; fi
+          for i in 1 2 3; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 https://cashnote.fullbang.net/login.html || echo 000)
+            echo "시도 $i: HTTP $code"
+            [ "$code" = 200 ] && exit 0
+            sleep 20
+          done
+          echo "::error::SalesHub(cashnote.fullbang.net) 이 3번 연속 응답하지 않아요"
+          exit 1
